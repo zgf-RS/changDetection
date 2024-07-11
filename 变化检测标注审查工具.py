@@ -4,16 +4,49 @@ from datetime import datetime
 
 class ImageComparer(wx.Frame):
     def __init__(self, parent, basePath, filenames):
-        super(ImageComparer, self).__init__(parent, title='变化检测标注审查工具')
+        super(ImageComparer, self).__init__(parent, title='变化检测标注审查V1')
+        self.SetBackgroundColour(wx.Colour(192, 192, 192))  # 确保窗口的背景色已经设置为白色
         self.filenames = filenames
         self.basePath = basePath
         self.checkPath = os.path.join(basePath, 'check')
+        self.screenshotPath = os.path.join(basePath, 'screenshot')
+        os.makedirs(self.screenshotPath, exist_ok=True)
         os.makedirs(self.checkPath, exist_ok=True)
         self.progress_file = os.path.join(self.checkPath, 'progress.txt')  # 保存进度的文件名
         self.error_logPath = os.path.join(self.checkPath, 'error_log.txt') # 错误日志文件
         self.index = 0
         self.delected = {}
         self.InitUI()
+
+    def CaptureScreen(self, event=None):
+            # 获取窗口的显示区域大小
+            screenshot_size = self.GetClientSize()
+            
+            # 创建一个wx.Bitmap对象
+            screenshot = wx.Bitmap(screenshot_size.width, screenshot_size.height)
+            
+            # 创建wx.MemoryDC，用于绘制截图
+            mem_dc = wx.MemoryDC()
+            mem_dc.SelectObject(screenshot)
+
+            # 创建wx.ClientDC，用于获取当前窗口的客户区
+            client_dc = wx.ClientDC(self)
+            
+            # 将当前窗口的客户区绘制到mem_dc上
+            mem_dc.Blit(0, 0, screenshot_size.width, screenshot_size.height, client_dc, 0, 0)
+            
+            # 取消选择wx.Bitmap，以便可以保存它
+            mem_dc.SelectObject(wx.NullBitmap)
+            
+            # 定义截图的文件名和路径
+            screenshot_filename = self.filenames[self.index]
+            screenshot_path = os.path.join(self.screenshotPath, screenshot_filename)
+            
+            # 保存截图
+            screenshot.SaveFile(screenshot_path, wx.BITMAP_TYPE_PNG)
+            
+            # 显示保存成功的提示
+            wx.MessageBox(f'截图已保存到: {screenshot_path}', 'Save Success', wx.OK | wx.ICON_INFORMATION)
 
     def SaveProgress(self):
             # 将当前索引保存到文件
@@ -44,12 +77,14 @@ class ImageComparer(wx.Frame):
         self.bitmap_a = wx.StaticBitmap(panel, wx.ID_ANY)
         self.bitmap_b = wx.StaticBitmap(panel, wx.ID_ANY)
         self.bitmap_label = wx.StaticBitmap(panel, wx.ID_ANY)
+        self.bitmap_infer = wx.StaticBitmap(panel, wx.ID_ANY)
 
         # 创建一个水平BoxSizer用于放置三个StaticBitmap
         hbox_images = wx.BoxSizer(wx.HORIZONTAL)
         hbox_images.Add(self.bitmap_a, 1, wx.ALL | wx.EXPAND, 5)
         hbox_images.Add(self.bitmap_b, 1, wx.ALL | wx.EXPAND, 5)
         hbox_images.Add(self.bitmap_label, 1, wx.ALL | wx.EXPAND, 5)
+        hbox_images.Add(self.bitmap_infer, 1, wx.ALL | wx.EXPAND, 5)
         vbox.Add(hbox_images, 1, wx.EXPAND)  # 添加图像布局到垂直布局
 
         # 创建进度显示文本控件
@@ -76,10 +111,18 @@ class ImageComparer(wx.Frame):
         btn_copy = wx.Button(panel, label='复制picid')
         btn_copy.Bind(wx.EVT_BUTTON, self.OnCopyFilename)
         hbox_actions.Add(btn_copy, 0, wx.ALIGN_CENTER|wx.ALL, 5)
+
+        # 创建保存截图按钮
+        btn_save = wx.Button(panel, label='保存整个显示区域')
+        btn_save.Bind(wx.EVT_BUTTON, self.CaptureScreen)
+        hbox_actions.Add(btn_save, 0, wx.ALIGN_CENTER | wx.ALL, 5)
+
         vbox.Add(hbox_actions, 0, wx.ALIGN_CENTER|wx.ALL, 5)  # 添加动作按钮布局到垂直布局
 
+        
+
         panel.SetSizer(vbox)
-        self.SetSize((900, 400))
+        self.SetSize((1100, 400))
 
         # 显示第一组图像
         self.ShowCurrentSet()
@@ -89,8 +132,8 @@ class ImageComparer(wx.Frame):
         total_files = len(self.filenames)
         self.progress_text.SetLabel(f"进度: {self.index + 1}/{total_files}")
         # 加载并显示当前索引的图像
-        for bitmap, folder in zip([self.bitmap_a, self.bitmap_b, self.bitmap_label],
-                                   ['A', 'B', 'Label']):
+        for bitmap, folder in zip([self.bitmap_a, self.bitmap_b, self.bitmap_label, self.bitmap_infer],
+                                   ['A', 'B', 'Label', 'Infer']):
             filename = self.filenames[self.index]
             image_path = f'{self.basePath}/{folder}/{filename}'
             image = wx.Image(image_path, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
@@ -147,7 +190,7 @@ class ImageComparer(wx.Frame):
 
 if __name__ == '__main__':
     app = wx.App(False)
-    # basePath = '/Users/zgf/Desktop/数据清洗/C104_22_106_25_tvt/train'
+    # basePath = '/Users/zgf/Desktop/数据集/png/GC/验证用/GC107_21_108_23_png'
     # # filenames是核心
     # filenames = os.listdir(basePath+'/A')  # 替换为实际的文件名列表
     # ex = ImageComparer(None, basePath, filenames)
